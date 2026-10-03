@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{{ code }} {{ title }} -- AI Link Threat Analyzer{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-7 text-center">
+
+      <div class="error-icon-wrap mx-auto mb-4">
+        {% if code == 404 %}<i class="bi bi-question-circle-fill"></i>
+        {% elif code == 429 %}<i class="bi bi-hourglass-split"></i>
+        {% elif code == 503 %}<i class="bi bi-tools"></i>
+        {% else %}<i class="bi bi-exclamation-triangle-fill"></i>
+        {% endif %}
+      </div>
+
+      <div class="error-code">{{ code }}</div>
+      <h2 class="error-title mb-2">{{ title }}</h2>
+      <p class="text-muted mb-5" style="font-size:1.05rem;">{{ message }}</p>
+
+      <div class="d-flex justify-content-center gap-3 flex-wrap mb-5">
+        <a href="{{ url_for('index') }}" class="btn btn-scan">
+          <i class="bi bi-house-fill me-2"></i>Back to Scanner
+        </a>
+        <button onclick="history.back()" class="btn btn-outline-secondary">
+          <i class="bi bi-arrow-left me-2"></i>Go Back
+        </button>
+      </div>
+
+      {% if code == 404 %}
+      <div class="chart-card text-start">
+        <div class="chart-card-header">
+          <i class="bi bi-map me-2 text-primary"></i>Pages you might be looking for
+        </div>
+        <div class="chart-card-body">
+          <div class="row g-2">
+            <div class="col-sm-6">
+              <a href="{{ url_for('index') }}" class="error-nav-link">
+                <i class="bi bi-search text-primary"></i>
+                <span>URL Scanner</span>
+              </a>
+            </div>
+            <div class="col-sm-6">
+              <a href="{{ url_for('dashboard') }}" class="error-nav-link">
+                <i class="bi bi-grid-1x2-fill text-primary"></i>
+                <span>Dashboard</span>
+              </a>
+            </div>
+            <div class="col-sm-6">
+              <a href="{{ url_for('history') }}" class="error-nav-link">
+                <i class="bi bi-clock-history text-primary"></i>
+                <span>Scan History</span>
+              </a>
+            </div>
+            <div class="col-sm-6">
+              <a href="{{ url_for('model_report') }}" class="error-nav-link">
+                <i class="bi bi-graph-up text-primary"></i>
+                <span>Model Report</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {% elif code == 429 %}
+      <div class="disclaimer-box" style="max-width:480px;margin:0 auto;">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>Rate limits:</strong> 30 analysis requests/minute,
+        5 batch requests/minute, 300 requests/day.
+        Please wait a moment before trying again.
+      </div>
+
+      {% elif code == 503 %}
+      <div class="disclaimer-box" style="max-width:500px;margin:0 auto;">
+        <i class="bi bi-info-circle me-2"></i>
+        The ML model may not be trained yet. Run the following from the project root,
+        then restart the application:
+        <code class="d-block mt-2 text-center">python -m src.train_model</code>
+      </div>
+
+      {% else %}
+      <div class="disclaimer-box" style="max-width:480px;margin:0 auto;">
+        <i class="bi bi-info-circle me-2"></i>
+        If this problem persists, check the application logs or restart the server.
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — AI Link Threat Analyzer{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  <!-- Page header with animated accent line -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <div class="page-accent-line mb-2"></div>
+      <h2 class="page-title mb-1"><i class="bi bi-grid-1x2-fill me-2 text-primary"></i>Dashboard</h2>
+      <p class="text-muted small mb-0">Aggregate statistics across all scanned URLs</p>
+    </div>
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <span class="text-muted small" id="lastRefreshed"></span>
+      <a href="{{ url_for('index') }}" class="btn btn-scan">
+        <i class="bi bi-search me-2"></i>Scan a URL
+      </a>
+    </div>
+  </div>
+
+  {% if not model_ready %}
+  <div class="alert alert-warning d-flex align-items-center gap-2 mb-4">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <span>ML model not trained. Run <code>python -m src.train_model</code> to enable scanning.</span>
+  </div>
+  {% endif %}
+
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-lg-2">
+      <div class="stat-card stat-total">
+        <div class="stat-icon"><i class="bi bi-globe2"></i></div>
+        <div class="stat-value" data-count="{{ stats.total }}">0</div>
+        <div class="stat-label">Total Scanned</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="stat-card stat-safe">
+        <div class="stat-icon"><i class="bi bi-shield-check-fill"></i></div>
+        <div class="stat-value" data-count="{{ stats.safe }}">0</div>
+        <div class="stat-label">Safe</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="stat-card stat-suspicious">
+        <div class="stat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+        <div class="stat-value" data-count="{{ stats.suspicious }}">0</div>
+        <div class="stat-label">Suspicious</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="stat-card stat-phishing">
+        <div class="stat-icon"><i class="bi bi-fish-fill"></i></div>
+        <div class="stat-value" data-count="{{ stats.phishing }}">0</div>
+        <div class="stat-label">Phishing</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="stat-card stat-malicious">
+        <div class="stat-icon"><i class="bi bi-bug-fill"></i></div>
+        <div class="stat-value" data-count="{{ stats.malicious }}">0</div>
+        <div class="stat-label">Malicious</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="stat-card stat-risk">
+        <div class="stat-icon"><i class="bi bi-speedometer2"></i></div>
+        <div class="stat-value" data-count="{{ stats.avg_risk_score }}">0</div>
+        <div class="stat-label">Avg Risk Score</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-4 mb-4">
+    <div class="col-md-6 col-xl-4">
+      <div class="chart-card h-100">
+        <div class="chart-card-header"><i class="bi bi-pie-chart-fill me-2 text-primary"></i>Detection Distribution</div>
+        <div class="chart-card-body d-flex justify-content-center align-items-center" style="height:260px;">
+          {% if stats.total > 0 %}<canvas id="detectionChart"></canvas>
+          {% else %}<div class="no-data-placeholder"><i class="bi bi-pie-chart display-4 d-block mb-2 opacity-25"></i><span>No scans yet</span></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6 col-xl-4">
+      <div class="chart-card h-100">
+        <div class="chart-card-header"><i class="bi bi-bar-chart-fill me-2 text-warning"></i>Risk Score Distribution</div>
+        <div class="chart-card-body" style="height:260px;">
+          {% if stats.total > 0 %}<canvas id="riskDistChart"></canvas>
+          {% else %}<div class="no-data-placeholder"><i class="bi bi-bar-chart-line display-4 d-block mb-2 opacity-25"></i><span>No scans yet</span></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-md-12 col-xl-4">
+      <div class="chart-card h-100">
+        <div class="chart-card-header"><i class="bi bi-graph-up-arrow me-2 text-success"></i>Scans Over Time</div>
+        <div class="chart-card-body" style="height:260px;">
+          {% if stats.scans_by_day | length > 0 %}<canvas id="timelineChart"></canvas>
+          {% else %}<div class="no-data-placeholder"><i class="bi bi-graph-up display-4 d-block mb-2 opacity-25"></i><span>No timeline data yet</span></div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if stats.total == 0 %}
+  <div class="chart-card mb-4">
+    <div class="chart-card-body">
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <i class="bi bi-shield-lock text-primary"></i>
+        </div>
+        <div class="empty-state-title">No scans yet</div>
+        <div class="empty-state-sub">
+          Analyze your first URL to see statistics, charts, and scan history here.
+        </div>
+        <a href="{{ url_for('index') }}" class="btn btn-scan">
+          <i class="bi bi-search me-2"></i>Scan Your First URL
+        </a>
+        <div class="mt-4 text-muted small">
+          <div class="row g-2 justify-content-center" style="max-width:480px;margin:0 auto;">
+            <div class="col-6 col-sm-3 text-center">
+              <i class="bi bi-shield-check-fill d-block mb-1" style="color:var(--safe);font-size:1.5rem;"></i>
+              <span>Safe</span>
+            </div>
+            <div class="col-6 col-sm-3 text-center">
+              <i class="bi bi-exclamation-triangle-fill d-block mb-1" style="color:var(--suspicious);font-size:1.5rem;"></i>
+              <span>Suspicious</span>
+            </div>
+            <div class="col-6 col-sm-3 text-center">
+              <i class="bi bi-fish-fill d-block mb-1" style="color:var(--phishing);font-size:1.5rem;"></i>
+              <span>Phishing</span>
+            </div>
+            <div class="col-6 col-sm-3 text-center">
+              <i class="bi bi-bug-fill d-block mb-1" style="color:var(--malicious);font-size:1.5rem;"></i>
+              <span>Malicious</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="chart-card">
+    <div class="chart-card-header d-flex justify-content-between align-items-center">
+      <span><i class="bi bi-clock-history me-2 text-info"></i>Recent Scans</span>
+      <a href="{{ url_for('history') }}" class="btn btn-sm btn-outline-secondary">View All <i class="bi bi-arrow-right ms-1"></i></a>
+    </div>
+    <div class="chart-card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-dark table-hover mb-0 align-middle">
+          <thead>
+            <tr>
+              <th class="ps-3">URL</th><th>Prediction</th><th>Risk Score</th><th>Confidence</th><th class="pe-3">Date / Time (UTC)</th>
+            </tr>
+          </thead>
+          <tbody id="recentScansBody">
+            <tr id="recentLoadingRow"><td colspan="5" class="py-4">
+              <div class="d-flex align-items-center justify-content-center gap-2 text-muted">
+                <div class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></div>
+                <span>Loading recent scans…</span>
+              </div>
+            </td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+const STATS = {{ stats_json | safe }};
+
+document.addEventListener("DOMContentLoaded", () => {
+
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(en => {
+      if (!en.isIntersecting) return;
+      const el  = en.target;
+      const val = parseFloat(el.dataset.count) || 0;
+      animateCount(el, val, 900);
+      obs.unobserve(el);
+    });
+  }, { threshold: 0.3 });
+  document.querySelectorAll(".stat-value[data-count]").forEach(el => obs.observe(el));
+
+  const lr = document.getElementById("lastRefreshed");
+  if (lr) lr.textContent = "Updated: " + new Date().toLocaleTimeString();
+
+  const colors = { safe:"#16a34a", suspicious:"#d97706", phishing:"#dc2626", malicious:"#7c3aed" };
+
+  if (STATS.total > 0) {
+    const dCtx = document.getElementById("detectionChart");
+    if (dCtx) new Chart(dCtx, {
+      type: "doughnut",
+      data: {
+        labels: ["Safe","Suspicious","Phishing","Malicious"],
+        datasets: [{ data:[STATS.safe,STATS.suspicious,STATS.phishing,STATS.malicious],
+          backgroundColor:[colors.safe,colors.suspicious,colors.phishing,colors.malicious],
+          borderColor:"#1e2235", borderWidth:3, hoverOffset:8 }]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        animation:{ animateScale:true, animateRotate:true, duration:900 },
+        plugins:{
+          legend:{ position:"bottom", labels:{color:"#cbd5e1",padding:12,font:{size:12}} },
+          tooltip:{ callbacks:{ label: ctx => {
+            const pct = STATS.total ? ((ctx.parsed/STATS.total)*100).toFixed(1) : 0;
+            return " "+ctx.label+": "+ctx.parsed+" ("+pct+"%)";
+          }}}
+        },
+        cutout:"62%"
+      }
+    });
+
+    const rCtx = document.getElementById("riskDistChart");
+    if (rCtx) {
+      const rb = STATS.risk_buckets || {};
+      new Chart(rCtx, {
+        type:"bar",
+        data:{
+          labels:["Low (0-30)","Medium (31-60)","High (61-80)","Critical (81-100)"],
+          datasets:[{ label:"Scans", data:[rb.low||0,rb.medium||0,rb.high||0,rb.critical||0],
+            backgroundColor:[colors.safe,colors.suspicious,colors.phishing,colors.malicious],
+            borderRadius:6, borderSkipped:false }]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false, animation:{duration:900},
+          plugins:{legend:{display:false}},
+          scales:{
+            x:{ticks:{color:"#94a3b8",font:{size:11}},grid:{color:"#1e2a3a"}},
+            y:{ticks:{color:"#94a3b8",precision:0},grid:{color:"#1e2a3a"},beginAtZero:true}
+          }
+        }
+      });
+    }
+
+    const tCtx = document.getElementById("timelineChart");
+    if (tCtx && STATS.scans_by_day && STATS.scans_by_day.length > 0) {
+      const days   = STATS.scans_by_day.map(d=>d.day).reverse();
+      const counts = STATS.scans_by_day.map(d=>d.count).reverse();
+      new Chart(tCtx, {
+        type:"line",
+        data:{ labels:days, datasets:[{ label:"Scans", data:counts,
+          borderColor:"#2563eb", backgroundColor:"rgba(37,99,235,0.12)",
+          pointBackgroundColor:"#2563eb", pointRadius:4, pointHoverRadius:6,
+          tension:0.4, fill:true }]
+        },
+        options:{
+          responsive:true, maintainAspectRatio:false, animation:{duration:900},
+          plugins:{legend:{display:false}},
+          scales:{
+            x:{ticks:{color:"#94a3b8",maxRotation:45,font:{size:10}},grid:{color:"#1e2a3a"}},
+            y:{ticks:{color:"#94a3b8",precision:0},grid:{color:"#1e2a3a"},beginAtZero:true}
+          }
+        }
+      });
+    }
+  }
+
+  fetch("/api/history?limit=10")
+    .then(r=>r.json())
+    .then(data=>{
+      const tbody = document.getElementById("recentScansBody");
+      if (!tbody) return;
+      if (!data.scans || data.scans.length===0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-5"><i class="bi bi-inbox display-4 d-block mb-3 opacity-25"></i>No scans yet. <a href="/">Scan your first URL</a></td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.scans.map(s => {
+        const rc = riskClass(s.risk_score);
+        return '<tr><td class="ps-3"><a href="/details/'+s.id+'" class="url-cell text-truncate d-inline-block" style="max-width:300px;" title="'+escHtml(s.url)+'">'+escHtml(s.url)+'</a></td><td><span class="badge-pred badge-pred-'+s.prediction.toLowerCase()+'">'+escHtml(s.prediction)+'</span></td><td><span class="risk-pill risk-'+rc+'">'+s.risk_score+'/100</span></td><td>'+(s.confidence*100).toFixed(1)+'%</td><td class="pe-3 text-muted small">'+escHtml(s.scanned_at)+'</td></tr>';
+      }).join("");
+    })
+    .catch(()=>{
+      const tbody = document.getElementById("recentScansBody");
+      if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3"><i class="bi bi-wifi-off me-2"></i>Could not load recent scans.</td></tr>';
+    });
+});
+</script>
+{% endblock %}

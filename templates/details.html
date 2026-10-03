@@ -1,0 +1,398 @@
+{% extends "base.html" %}
+{% block title %}Scan #{{ scan.id }} — AI Link Threat Analyzer{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  <!-- ── Navigation bar ────────────────────────────────────────────────── -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <a href="{{ url_for('history') }}" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i>History
+      </a>
+      <!-- Prev / Next navigation -->
+      {% if prev_id %}
+      <a href="{{ url_for('details', scan_id=prev_id) }}" class="btn btn-sm btn-outline-secondary" title="Previous scan (#{{ prev_id }})">
+        <i class="bi bi-chevron-left"></i> Prev
+      </a>
+      {% else %}
+      <button class="btn btn-sm btn-outline-secondary" disabled title="No previous scan">
+        <i class="bi bi-chevron-left"></i> Prev
+      </button>
+      {% endif %}
+      {% if next_id %}
+      <a href="{{ url_for('details', scan_id=next_id) }}" class="btn btn-sm btn-outline-secondary" title="Next scan (#{{ next_id }})">
+        Next <i class="bi bi-chevron-right"></i>
+      </a>
+      {% else %}
+      <button class="btn btn-sm btn-outline-secondary" disabled title="No next scan">
+        Next <i class="bi bi-chevron-right"></i>
+      </button>
+      {% endif %}
+    </div>
+
+    <div class="d-flex align-items-center gap-2">
+      <span class="text-muted small">Scan <strong class="text-light">#{{ scan.id }}</strong></span>
+      <!-- Re-scan button: pre-fills the scanner with this URL -->
+      <a href="{{ url_for('index') }}?url={{ scan.url | urlencode }}"
+         class="btn btn-sm btn-scan" id="rescanBtn"
+         title="Re-scan this URL on the scanner page">
+        <i class="bi bi-arrow-clockwise me-1"></i>Scan Again
+      </a>
+    </div>
+  </div>
+
+  <div class="row g-4">
+
+    <!-- ── Left column ──────────────────────────────────────────────────── -->
+    <div class="col-lg-8">
+
+      <!-- Result banner -->
+      <div class="detail-result-banner detail-banner-{{ scan.prediction | lower }} mb-4">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div class="d-flex align-items-center gap-3">
+            <div class="detail-pred-icon">
+              {% if scan.prediction == 'SAFE' %}<i class="bi bi-shield-check-fill"></i>
+              {% elif scan.prediction == 'SUSPICIOUS' %}<i class="bi bi-exclamation-triangle-fill"></i>
+              {% elif scan.prediction == 'PHISHING' %}<i class="bi bi-fish-fill"></i>
+              {% else %}<i class="bi bi-bug-fill"></i>{% endif %}
+            </div>
+            <div>
+              <div class="detail-pred-label">AI Prediction</div>
+              <div class="detail-pred-value">{{ scan.prediction }}</div>
+            </div>
+          </div>
+          <div class="d-flex gap-4 flex-wrap text-center">
+            <div>
+              <div class="detail-metric-label">Risk Score</div>
+              <div class="detail-metric-value">{{ scan.risk_score }}<span class="text-muted small">/100</span></div>
+              <div class="detail-metric-sub">{{ scan.risk_level }}</div>
+            </div>
+            <div>
+              <div class="detail-metric-label">Confidence</div>
+              <div class="detail-metric-value">{{ "%.1f"|format(scan.confidence * 100) }}<span class="text-muted small">%</span></div>
+            </div>
+            <div>
+              <div class="detail-metric-label">Model</div>
+              <div class="detail-metric-sub mt-1 fw-semibold" style="font-size:0.85rem;color:var(--text-secondary);">{{ scan.model_name or 'Unknown' }}</div>
+            </div>
+          </div>
+        </div>
+        <!-- Risk bar -->
+        <div class="risk-bar-wrap mt-3" style="background:rgba(255,255,255,0.06);border-radius:4px;height:6px;overflow:hidden;">
+          <div class="risk-bar" style="height:100%;border-radius:4px;width:{{ scan.risk_score }}%;
+            background:{% if scan.risk_score <= 30 %}var(--safe){% elif scan.risk_score <= 60 %}var(--suspicious){% elif scan.risk_score <= 80 %}var(--phishing){% else %}var(--malicious){% endif %};"></div>
+        </div>
+      </div>
+
+      <!-- URL Information -->
+      <div class="detail-card mb-4">
+        <div class="detail-card-header d-flex align-items-center justify-content-between">
+          <span><i class="bi bi-link-45deg me-2"></i>URL Information</span>
+          <button class="btn btn-sm btn-outline-secondary" id="copyUrlBtn"
+                  data-url="{{ scan.url }}" title="Copy URL to clipboard">
+            <i class="bi bi-clipboard me-1"></i>Copy
+          </button>
+        </div>
+        <div class="detail-card-body">
+          <div class="mb-3">
+            <div class="detail-field-label">Full URL</div>
+            <div class="detail-field-value url-break" id="fullUrl">{{ scan.url }}</div>
+          </div>
+          {% if url_parts %}
+          <div class="row g-3">
+            {% if url_parts.scheme %}
+            <div class="col-sm-3">
+              <div class="detail-field-label">Protocol</div>
+              <div class="detail-field-value">
+                <span class="badge {% if url_parts.scheme == 'https' %}bg-success{% else %}bg-warning text-dark{% endif %}">
+                  {{ url_parts.scheme | upper }}
+                </span>
+              </div>
+            </div>
+            {% endif %}
+            {% if url_parts.domain %}
+            <div class="col-sm-5">
+              <div class="detail-field-label">Domain</div>
+              <div class="detail-field-value font-mono small">{{ url_parts.domain }}</div>
+            </div>
+            {% endif %}
+            {% if url_parts.path and url_parts.path != '/' %}
+            <div class="col-sm-4">
+              <div class="detail-field-label">Path</div>
+              <div class="detail-field-value font-mono small text-truncate" title="{{ url_parts.path }}">{{ url_parts.path }}</div>
+            </div>
+            {% endif %}
+          </div>
+          {% if url_parts.query %}
+          <div class="mt-3">
+            <div class="detail-field-label mb-1">Query Parameters</div>
+            <div class="d-flex flex-wrap gap-2">
+              {% for key, vals in url_parts.query.items() %}
+              <span class="badge bg-secondary font-mono small">{{ key }}={{ vals[0] if vals else '' }}</span>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+          {% endif %}
+          <div class="mt-3">
+            <div class="detail-field-label">Scanned At (UTC)</div>
+            <div class="detail-field-value small">{{ scan.scanned_at }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Why flagged -->
+      <div class="detail-card mb-4">
+        <div class="detail-card-header">
+          <i class="bi bi-info-circle-fill me-2"></i>Why was this URL flagged?
+        </div>
+        <div class="detail-card-body">
+          {% if explanation %}
+          <ul class="flag-list">
+            {% for flag in explanation %}
+            <li class="flag-item">
+              {% set is_pos = 'HTTPS' in flag or 'Normal' in flag or 'No ' in flag or 'proper' in flag %}
+              <i class="bi bi-{% if is_pos %}check-circle-fill text-success{% else %}exclamation-circle-fill text-warning{% endif %} flex-shrink-0 me-2 mt-1"></i>
+              <span>{{ flag }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="text-muted mb-0">No specific flags recorded for this scan.</p>
+          {% endif %}
+          <div class="disclaimer-box mt-3">
+            <i class="bi bi-exclamation-circle me-2 flex-shrink-0"></i>
+            <span><strong>Disclaimer:</strong> Automated ML prediction. Not a guarantee of safety or maliciousness.</span>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- Feature Contributions (from model internals) -->
+      {% if scan.get("contributions_json") %}
+      {% set contribs = scan["contributions_json"] if scan["contributions_json"] is iterable and scan["contributions_json"] is not string else [] %}
+      {% if contribs %}
+      <div class="detail-card mb-4">
+        <div class="detail-card-header d-flex align-items-center justify-content-between">
+          <span>
+            <i class="bi bi-diagram-3-fill me-2 text-info"></i>Feature Contributions
+          </span>
+          <span class="badge bg-secondary small">{{ scan.get("explain_method", "rule_based").replace("_"," ").title() }}</span>
+        </div>
+        <div class="detail-card-body">
+          <p class="text-muted small mb-3">
+            Features that most influenced this prediction, ranked by importance score.
+          </p>
+          {% for contrib in contribs[:8] %}
+          <div class="contrib-row mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="contrib-name font-mono small">{{ contrib.feature }}</span>
+              <div class="d-flex align-items-center gap-2">
+                <span class="contrib-value {% if contrib.value == 1 %}text-warning{% elif contrib.value == 0 %}text-success{% else %}text-info{% endif %}">
+                  {% if contrib.value == 1 %}Yes{% elif contrib.value == 0 %}No{% else %}{{ contrib.value }}{% endif %}
+                </span>
+                <span class="contrib-importance text-muted small">{{ "%.1f"|format(contrib.importance * 100) }}%</span>
+                <span class="contrib-dir {% if contrib.direction == 'increases' %}text-danger{% elif contrib.direction == 'decreases' %}text-success{% else %}text-muted{% endif %} small">
+                  {% if contrib.direction == "increases" %}<i class="bi bi-arrow-up-short"></i>risk
+                  {% elif contrib.direction == "decreases" %}<i class="bi bi-arrow-down-short"></i>risk
+                  {% else %}&mdash;{% endif %}
+                </span>
+              </div>
+            </div>
+            <div class="contrib-bar-track">
+              <div class="contrib-bar-fill {% if contrib.direction == 'increases' %}contrib-bar-risk{% else %}contrib-bar-safe{% endif %}"
+                   style="width: {{ [contrib.importance * 500, 100]|min|round(1) }}%;"></div>
+            </div>
+          </div>
+          {% endfor %}
+          <p class="text-muted small mb-0 mt-3">
+            <i class="bi bi-info-circle me-1"></i>
+            Importance score reflects the model&#39;s internal feature weight, not a direct probability.
+          </p>
+        </div>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      <!-- Class probabilities -->
+      {% if probabilities %}
+      <div class="detail-card mb-4">
+        <div class="detail-card-header">
+          <i class="bi bi-bar-chart-fill me-2"></i>Class Probabilities
+        </div>
+        <div class="detail-card-body">
+          {% set order = ['safe','suspicious','phishing','malicious'] %}
+          {% for label in order %}
+          {% set prob = probabilities.get(label, 0) %}
+          <div class="mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <span class="badge-pred badge-pred-{{ label }}">{{ label | upper }}</span>
+              <span class="fw-semibold {% if label == scan.prediction | lower %}text-light{% else %}text-muted{% endif %} small">
+                {{ "%.1f"|format(prob * 100) }}%
+              </span>
+            </div>
+            <div class="progress" style="height:8px;background:#1e2a3a;">
+              <div class="progress-bar prob-bar-{{ label }}" style="width:{{ (prob * 100) | round(1) }}%;"></div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- ── Right column ──────────────────────────────────────────────────── -->
+    <div class="col-lg-4">
+
+      <!-- Quick actions -->
+      <div class="detail-card mb-4">
+        <div class="detail-card-header">
+          <i class="bi bi-lightning-fill me-2 text-warning"></i>Quick Actions
+        </div>
+        <div class="detail-card-body d-flex flex-column gap-2">
+          <a href="{{ url_for('index') }}?url={{ scan.url | urlencode }}"
+             class="btn btn-scan w-100">
+            <i class="bi bi-arrow-clockwise me-2"></i>Re-scan This URL
+          </a>
+          <a href="/api/export/csv?q={{ scan.domain }}" class="btn btn-outline-secondary w-100">
+            <i class="bi bi-download me-2"></i>Export Related Scans
+          </a>
+          <a href="{{ url_for('api_scan_detail', scan_id=scan.id) }}" target="_blank"
+             class="btn btn-outline-secondary w-100">
+            <i class="bi bi-code-slash me-2"></i>View Raw JSON
+          </a>
+        </div>
+      </div>
+
+      <!-- Extracted features -->
+      <div class="detail-card">
+        <div class="detail-card-header d-flex align-items-center justify-content-between">
+          <span><i class="bi bi-list-check me-2"></i>Extracted Features</span>
+          <span class="badge bg-primary">{{ features | length }}</span>
+        </div>
+        <div class="detail-card-body p-0">
+          <div class="feature-table-wrap">
+            <table class="table table-sm table-dark mb-0">
+              <thead>
+                <tr>
+                  <th class="ps-3">Feature</th>
+                  <th class="pe-3 text-end">Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% if features %}
+                  {% for key, val in features.items() %}
+                  <tr>
+                    <td class="ps-3 small text-muted" title="{{ key }}">
+                      {{ key.replace('_', ' ').title() }}
+                    </td>
+                    <td class="pe-3 text-end">
+                      {% if val == 1 and key.startswith("has_") or val == 1 and key.startswith("is_") or val == 1 and key.startswith("uses_") or val == 1 and key.startswith("excessive") %}
+                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle small">Yes</span>
+                      {% elif val == 0 and key.startswith("has_") or val == 0 and key.startswith("is_") or val == 0 and key.startswith("uses_") or val == 0 and key.startswith("excessive") %}
+                        <span class="badge bg-success-subtle text-success border border-success-subtle small">No</span>
+                      {% elif val is not none and val != val|int %}
+                        <span class="feature-value-float">{{ "%.4f"|format(val) }}</span>
+                      {% elif val is number and val != 0 %}
+                        <span class="feature-value-numeric">{{ val }}</span>
+                      {% elif val == 0 %}
+                        <span class="text-muted small">0</span>
+                      {% else %}
+                        <span class="text-muted small">{{ val }}</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                  {% endfor %}
+                {% else %}
+                  <tr><td colspan="2" class="text-center text-muted py-3">No feature data.</td></tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ── Bottom prev/next ──────────────────────────────────────────────── -->
+  <div class="d-flex justify-content-between align-items-center mt-5 pt-3"
+       style="border-top:1px solid var(--border-color);">
+    {% if prev_id %}
+    <a href="{{ url_for('details', scan_id=prev_id) }}" class="btn btn-outline-secondary">
+      <i class="bi bi-chevron-left me-1"></i>Previous Scan <span class="text-muted small ms-1">#{{ prev_id }}</span>
+    </a>
+    {% else %}
+    <span></span>
+    {% endif %}
+    <a href="{{ url_for('history') }}" class="btn btn-outline-secondary">
+      <i class="bi bi-clock-history me-1"></i>All Scans
+    </a>
+    {% if next_id %}
+    <a href="{{ url_for('details', scan_id=next_id) }}" class="btn btn-outline-secondary">
+      Next Scan <span class="text-muted small ms-1">#{{ next_id }}</span><i class="bi bi-chevron-right ms-1"></i>
+    </a>
+    {% else %}
+    <span></span>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+  // Copy URL button
+  const copyBtn = document.getElementById("copyUrlBtn");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", () => {
+      const url = copyBtn.dataset.url || "";
+      if (!url) return;
+      navigator.clipboard.writeText(url).then(() => {
+        copyBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copied!';
+        copyBtn.classList.add("btn-success");
+        copyBtn.classList.remove("btn-outline-secondary");
+        setTimeout(() => {
+          copyBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy';
+          copyBtn.classList.remove("btn-success");
+          copyBtn.classList.add("btn-outline-secondary");
+        }, 2000);
+      }).catch(() => {
+        // Fallback for older browsers
+        const ta = document.createElement("textarea");
+        ta.value = url;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        copyBtn.innerHTML = '<i class="bi bi-check2 me-1"></i>Copied!';
+        setTimeout(() => { copyBtn.innerHTML = '<i class="bi bi-clipboard me-1"></i>Copy'; }, 2000);
+      });
+    });
+  }
+
+  // Re-scan button — if URL param provided, pre-fill the scanner and auto-submit
+  const rescanBtn = document.getElementById("rescanBtn");
+  // The button is a plain link to /?url=... so the index page JS will handle it
+
+  // Keyboard navigation: [ = prev, ] = next
+  document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    if (e.key === "[" || e.key === "ArrowLeft") {
+      const prev = document.querySelector("a[href*='prev_id'], .btn[title^='Previous']");
+      if (prev && prev.tagName === "A") prev.click();
+    }
+    if (e.key === "]" || e.key === "ArrowRight") {
+      const next = document.querySelector("a[href*='next_id'], .btn[title^='Next']");
+      if (next && next.tagName === "A") next.click();
+    }
+  });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% block title %}Model Report — AI Link Threat Analyzer{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+
+  <!-- Page header -->
+  <div class="d-flex align-items-center justify-content-between mb-4 flex-wrap gap-3">
+    <div>
+      <h2 class="page-title mb-1">
+        <i class="bi bi-graph-up me-2 text-primary"></i>Model Training Report
+      </h2>
+      <p class="text-muted small mb-0">
+        Comparison of all trained classifiers with evaluation metrics from the held-out test set.
+      </p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{{ url_for('index') }}" class="btn btn-scan">
+        <i class="bi bi-search me-2"></i>Scan a URL
+      </a>
+    </div>
+  </div>
+
+  {% if not model_ready %}
+  <div class="alert alert-warning d-flex align-items-center gap-2 mb-4">
+    <i class="bi bi-exclamation-triangle-fill"></i>
+    <span>No trained model found. Run <code>python -m src.train_model</code> first.</span>
+  </div>
+  {% endif %}
+
+  <!-- ── Selected model banner ─────────────────────────────────────── -->
+  {% if selected_model and selected_model != 'Unknown' %}
+  <div class="report-selected-banner mb-4">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <div class="report-selected-icon">
+        <i class="bi bi-trophy-fill"></i>
+      </div>
+      <div>
+        <div class="report-selected-label">Selected Model for Production</div>
+        <div class="report-selected-name">{{ selected_model }}</div>
+      </div>
+      <div class="ms-auto text-end">
+        <div class="report-selected-label">Selection Criteria</div>
+        <div class="report-selected-formula">
+          <code class="text-info">0.45 × F1 + 0.30 × ROC-AUC + 0.25 × Recall</code>
+        </div>
+        <div class="text-muted small mt-1">Optimised for threat detection recall</div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Model comparison table ────────────────────────────────────── -->
+  {% if comparison %}
+  <div class="chart-card mb-4">
+    <div class="chart-card-header">
+      <i class="bi bi-table me-2 text-primary"></i>Classifier Comparison — Test Set Metrics
+    </div>
+    <div class="chart-card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-dark table-hover mb-0 align-middle">
+          <thead>
+            <tr>
+              <th class="ps-3">Model</th>
+              <th class="text-center metric-bar-cell">Accuracy</th>
+              <th class="text-center metric-bar-cell">Precision</th>
+              <th class="text-center metric-bar-cell">Recall</th>
+              <th class="text-center metric-bar-cell">F1-Score</th>
+              <th class="text-center metric-bar-cell">ROC-AUC</th>
+              <th class="pe-3 text-center">Selected</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in comparison %}
+            <tr class="{% if row.selected %}report-selected-row{% endif %}">
+              <td class="ps-3 fw-semibold">
+                {% if row.selected %}
+                  <i class="bi bi-trophy-fill text-warning me-2"></i>
+                {% else %}
+                  <span class="me-4"></span>
+                {% endif %}
+                {{ row.name }}
+              </td>
+              {% for metric_name, metric_val in [('accuracy', row.accuracy), ('precision', row.precision), ('recall', row.recall), ('f1', row.f1)] %}
+              <td class="text-center metric-bar-cell">
+                {% set cls = 'metric-good' if metric_val >= 95 else ('metric-ok' if metric_val >= 85 else 'metric-warn') %}
+                {% set bar_cls = 'metric-bar-good' if metric_val >= 95 else ('metric-bar-ok' if metric_val >= 85 else 'metric-bar-warn') %}
+                <span class="report-metric {{ cls }}">{{ metric_val }}%</span>
+                <div class="metric-bar-wrap">
+                  <div class="metric-bar-fill {{ bar_cls }}" style="width:{{ metric_val }}%;"></div>
+                </div>
+              </td>
+              {% endfor %}
+              <td class="text-center metric-bar-cell">
+                {% if row.roc_auc is not none %}
+                {% set cls = 'metric-good' if row.roc_auc >= 95 else ('metric-ok' if row.roc_auc >= 85 else 'metric-warn') %}
+                {% set bar_cls = 'metric-bar-good' if row.roc_auc >= 95 else ('metric-bar-ok' if row.roc_auc >= 85 else 'metric-bar-warn') %}
+                <span class="report-metric {{ cls }}">{{ row.roc_auc }}%</span>
+                <div class="metric-bar-wrap">
+                  <div class="metric-bar-fill {{ bar_cls }}" style="width:{{ row.roc_auc }}%;"></div>
+                </div>
+                {% else %}
+                <span class="text-muted small">N/A</span>
+                {% endif %}
+              </td>
+              <td class="pe-3 text-center">
+                {% if row.selected %}
+                  <span class="badge bg-warning text-dark fw-semibold">
+                    <i class="bi bi-check-lg me-1"></i>Active
+                  </span>
+                {% else %}
+                  <span class="text-muted small">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="chart-card-header border-top-0 border-bottom-0 pt-0 pb-3 px-4">
+      <small class="text-muted">
+        <i class="bi bi-info-circle me-1"></i>
+        All metrics evaluated on a stratified 20% hold-out test set (random_state=42).
+        Metrics shown as percentages. Colour: 
+        <span class="metric-good px-2 rounded small">≥95% excellent</span>
+        <span class="metric-ok px-2 rounded small ms-1">≥90% good</span>
+        <span class="metric-warn px-2 rounded small ms-1">&lt;90% needs improvement</span>.
+      </small>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Why not just accuracy? ────────────────────────────────────── -->
+  <div class="chart-card mb-4">
+    <div class="chart-card-header">
+      <i class="bi bi-lightbulb-fill me-2 text-warning"></i>Model Selection Rationale
+    </div>
+    <div class="chart-card-body">
+      <div class="row g-4">
+
+        <div class="col-md-6">
+          <h6 class="text-light mb-2">Why not just use Accuracy?</h6>
+          <p class="text-muted small mb-0">
+            In cybersecurity threat detection, accuracy alone is misleading. A model that labels
+            everything as "safe" on a mostly-safe dataset achieves high accuracy but is useless.
+            We care more about <strong class="text-warning">Recall</strong> — catching as many
+            real threats as possible — even at the cost of some false alarms.
+          </p>
+        </div>
+
+        <div class="col-md-6">
+          <h6 class="text-light mb-2">Composite Selection Score</h6>
+          <div class="selection-formula-box">
+            <div class="formula-line">
+              <span class="formula-weight text-info">0.45</span>
+              <span class="formula-op">×</span>
+              <span class="formula-metric text-success">F1-Score</span>
+            </div>
+            <div class="formula-line">
+              <span class="formula-weight text-info">0.30</span>
+              <span class="formula-op">×</span>
+              <span class="formula-metric text-primary">ROC-AUC</span>
+            </div>
+            <div class="formula-line">
+              <span class="formula-weight text-info">0.25</span>
+              <span class="formula-op">×</span>
+              <span class="formula-metric text-warning">Recall</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Training charts ───────────────────────────────────────────── -->
+  {% if report_charts %}
+  <h5 class="text-light mb-3 mt-2">
+    <i class="bi bi-image me-2 opacity-50"></i>Training Visualisations
+  </h5>
+
+  <div class="row g-4">
+    {% for chart in report_charts %}
+    <div class="col-md-6 col-xl-{% if loop.index <= 3 %}4{% else %}6{% endif %}">
+      <div class="chart-card chart-img-card">
+        <div class="chart-card-header">
+          <i class="bi bi-bar-chart-fill me-2 text-primary opacity-75"></i>
+          {{ chart.label }}
+        </div>
+        <div class="chart-card-body p-2 text-center">
+          <img
+            src="{{ chart.url }}"
+            alt="{{ chart.label }}"
+            class="report-chart-img"
+            loading="lazy"
+            onclick="openLightbox(this)"
+          />
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% else %}
+  <div class="chart-card">
+    <div class="chart-card-body text-center py-5 text-muted">
+      <i class="bi bi-image display-4 d-block mb-3 opacity-25"></i>
+      No training charts found. Run <code>python -m src.train_model</code> to generate them.
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- ── Feature list ──────────────────────────────────────────────── -->
+  {% if feature_names %}
+  <div class="chart-card mt-4">
+    <div class="chart-card-header">
+      <i class="bi bi-list-check me-2 text-info"></i>
+      Feature Set Used for Training
+      <span class="badge bg-primary ms-2">{{ feature_names | length }} features</span>
+    </div>
+    <div class="chart-card-body">
+      <div class="feature-name-grid">
+        {% for name in feature_names %}
+        <span class="feature-name-chip">
+          <i class="bi bi-dot me-1 opacity-50"></i>{{ name }}
+        </span>
+        {% endfor %}
+      </div>
+      <p class="text-muted small mt-3 mb-0">
+        <i class="bi bi-info-circle me-1"></i>
+        All features are extracted statically from the URL string. No network requests are made.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- ── Lightbox overlay ─────────────────────────────────────────────── -->
+<div id="lightbox" class="lightbox-overlay d-none" onclick="closeLightbox()">
+  <div class="lightbox-close" onclick="closeLightbox()">
+    <i class="bi bi-x-lg"></i>
+  </div>
+  <img id="lightboxImg" src="" alt="Chart" class="lightbox-img" onclick="event.stopPropagation()" />
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function openLightbox(img) {
+  const lb    = document.getElementById('lightbox');
+  const lbImg = document.getElementById('lightboxImg');
+  if (!lb || !lbImg) return;
+  lbImg.src = img.src;
+  lbImg.alt = img.alt;
+  lb.classList.remove('d-none');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLightbox() {
+  const lb = document.getElementById('lightbox');
+  if (lb) lb.classList.add('d-none');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLightbox();
+});
+</script>
+{% endblock %}

@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+{% block title %}Scanner — AI Link Threat Analyzer{% endblock %}
+
+{% block content %}
+<!-- Hero -->
+<section class="hero-section">
+  <!-- 3D particle canvas injected here by animations.js -->
+
+  <!-- Animated grid overlay -->
+  <div class="hero-grid-overlay" aria-hidden="true"></div>
+
+  <!-- Floating orbs (CSS animated) -->
+  <div class="hero-orb hero-orb-1" aria-hidden="true"></div>
+  <div class="hero-orb hero-orb-2" aria-hidden="true"></div>
+  <div class="hero-orb hero-orb-3" aria-hidden="true"></div>
+
+  <div class="container">
+    <div class="row justify-content-center text-center">
+      <div class="col-lg-9">
+
+        <!-- 3D rotating shield (Three.js target) -->
+        <div class="hero-shield-wrap mx-auto mb-3">
+          <div id="hero-shield-3d" class="hero-shield-3d" aria-hidden="true"></div>
+          <div class="hero-icon-wrap mx-auto hero-icon-overlay">
+            <i class="bi bi-shield-lock-fill"></i>
+          </div>
+        </div>
+
+        <!-- Glowing badge -->
+        <div class="hero-badge mb-3">
+          <span class="hero-badge-dot"></span>
+          <span>AI-Powered Threat Detection</span>
+        </div>
+
+        <h1 class="hero-title">AI Link Threat Analyzer</h1>
+        <p class="hero-subtitle">
+          Analyze suspicious URLs using Machine Learning and URL-based
+          threat intelligence. Instant static analysis — no browsing required.
+        </p>
+
+        <!-- Live stats bar -->
+        <div class="hero-stats-bar mb-4">
+          <div class="hero-stat-item">
+            <i class="bi bi-cpu-fill text-info me-1"></i>
+            <span class="hero-stat-label">ML Powered</span>
+          </div>
+          <div class="hero-stat-divider" aria-hidden="true"></div>
+          <div class="hero-stat-item">
+            <i class="bi bi-lightning-charge-fill text-warning me-1"></i>
+            <span class="hero-stat-label">Instant Analysis</span>
+          </div>
+          <div class="hero-stat-divider" aria-hidden="true"></div>
+          <div class="hero-stat-item">
+            <i class="bi bi-shield-check-fill text-success me-1"></i>
+            <span class="hero-stat-label">4 Threat Classes</span>
+          </div>
+        </div>
+
+        {% if not model_ready %}
+        <div class="alert alert-warning d-inline-flex align-items-center gap-2 mb-4" role="alert">
+          <i class="bi bi-exclamation-triangle-fill"></i>
+          <span>ML model is not trained yet. Run <code>python -m src.train_model</code> first.</span>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Scanner card -->
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="scanner-card">
+          <div class="scanner-card-header">
+            <i class="bi bi-link-45deg me-2"></i>Enter a URL to Analyze
+          </div>
+          <div class="scanner-card-body">
+            <form id="scanForm" autocomplete="off" novalidate>
+              <div class="url-input-group mb-3">
+                <span class="url-input-icon"><i class="bi bi-globe2"></i></span>
+                <input type="text" id="urlInput" class="form-control url-input"
+                       placeholder="https://example.com/path?param=value"
+                       aria-label="URL to analyze" maxlength="2048" spellcheck="false"
+                       {% if not model_ready %}disabled{% endif %} />
+              </div>
+              <div id="urlError" class="url-error d-none"></div>
+              <div class="d-flex gap-3 flex-wrap">
+                <button type="submit" class="btn btn-scan flex-grow-1" id="analyzeBtn"
+                        {% if not model_ready %}disabled{% endif %}>
+                  <i class="bi bi-search me-2"></i>Analyze URL
+                </button>
+                <button type="button" class="btn btn-outline-secondary" id="clearBtn" title="Clear">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </div>
+            </form>
+            <!-- Example URLs -->
+            <div class="mt-3 d-flex flex-wrap align-items-center gap-2">
+              <span class="text-muted small">Try:</span>
+              <button class="btn btn-example" data-url="https://www.google.com">google.com</button>
+              <button class="btn btn-example" data-url="http://192.168.1.1/login.php">IP login</button>
+              <button class="btn btn-example" data-url="https://secure-paypal-verify.xyz/account">Phishing example</button>
+              <button class="btn btn-example" data-url="http://bit.ly/suspicious">Shortener</button>
+              <button class="btn btn-example" data-url="http://malware-distribution.xyz/download/crack.exe">Malware example</button>
+            </div>
+            <!-- Batch scan toggle -->
+            <button class="btn-batch-toggle mt-2" id="batchToggleBtn"
+                    {% if not model_ready %}disabled{% endif %}>
+              <i class="bi bi-collection me-2"></i>Batch Scanner (multiple URLs)
+              <i class="bi bi-chevron-down ms-2" id="batchToggleIcon"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Recent scans widget -->
+        <div class="recent-scans-widget mt-3" id="recentWidget" style="display:none;">
+          <div class="recent-scans-header">
+            <span><i class="bi bi-clock-history me-2 text-info"></i>Recent Scans</span>
+            <a href="/history" class="text-muted small">View all &rsaquo;</a>
+          </div>
+          <div id="recentWidgetBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Loading indicator -->
+<div id="loadingSection" class="d-none">
+  <div class="container">
+    <div class="row justify-content-center mt-4">
+      <div class="col-lg-8">
+        <div class="loading-card text-center py-5">
+          <div class="scanner-pulse mb-4">
+            <i class="bi bi-shield-lock-fill"></i>
+          </div>
+          <h5 class="text-light">Analyzing URL…</h5>
+          <p class="text-muted small">Extracting features and running ML inference</p>
+          <div class="progress mt-3" style="height:4px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary w-100"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Result section -->
+<section id="resultSection" class="d-none py-4" aria-live="polite" aria-atomic="true">
+  <div class="container">
+    <div class="row justify-content-center g-4">
+
+      <!-- Prediction card -->
+      <div class="col-lg-8">
+        <div class="result-card" id="resultCard">
+          <div class="result-header" id="resultHeader">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+              <div class="d-flex align-items-center gap-3">
+                <div class="result-icon" id="resultIcon"></div>
+                <div>
+                  <div class="result-label">Prediction</div>
+                  <div class="result-prediction" id="resultPrediction"></div>
+                </div>
+              </div>
+              <div class="text-end">
+                <div class="result-label">Scanned URL</div>
+                <div class="result-url text-truncate" id="resultUrl" style="max-width:320px;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="result-body">
+            <!-- Metrics row -->
+            <div class="row g-3 mb-4">
+              <div class="col-sm-4">
+                <div class="metric-card">
+                  <div class="metric-label">Risk Score</div>
+                  <div class="metric-value" id="riskScore"></div>
+                  <div class="metric-sub" id="riskLevel"></div>
+                  <div class="risk-bar-wrap mt-2">
+                    <div class="risk-bar" id="riskBar"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-sm-4">
+                <div class="metric-card">
+                  <div class="metric-label">Confidence</div>
+                  <div class="metric-value" id="confidenceVal"></div>
+                  <div class="metric-sub">Model certainty</div>
+                </div>
+              </div>
+              <div class="col-sm-4">
+                <div class="metric-card">
+                  <div class="metric-label">Model</div>
+                  <div class="metric-value-sm" id="modelName"></div>
+                  <div class="metric-sub">Classifier used</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Class probabilities -->
+            <div class="mb-4">
+              <h6 class="section-label"><i class="bi bi-bar-chart-fill me-2"></i>Class Probabilities</h6>
+              <div id="probBars"></div>
+            </div>
+
+            <!-- Feature contributions (populated by JS) -->
+            <div id="contribSection" style="display:none;"></div>
+
+            <!-- Why flagged -->
+            <div class="mb-4">
+              <h6 class="section-label"><i class="bi bi-info-circle-fill me-2"></i>Why was this URL flagged?</h6>
+              <ul class="flag-list" id="flagList"></ul>
+            </div>
+
+            <!-- Disclaimer -->
+            <div class="disclaimer-box">
+              <i class="bi bi-exclamation-circle me-2"></i>
+              <strong>Disclaimer:</strong> This is an automated ML prediction based on static URL
+              analysis. It does not guarantee a URL is safe or malicious. Always exercise caution.
+            </div>
+
+            <div class="mt-3 text-end">
+              <a id="detailsLink" href="#" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-file-text me-1"></i>Full Details
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature highlights sidebar -->
+      <div class="col-lg-4">
+        <div class="feature-sidebar">
+          <h6 class="section-label mb-3">
+            <i class="bi bi-list-check me-2"></i>Key Features Detected
+          </h6>
+          <div id="featureGrid"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- Error section -->
+<div id="errorSection" class="d-none py-4">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="alert alert-danger d-flex align-items-center gap-3" role="alert">
+          <i class="bi bi-exclamation-triangle-fill fs-4"></i>
+          <div>
+            <strong>Analysis failed</strong>
+            <div id="errorMessage" class="small mt-1"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- Batch Scan section (collapsed by default) -->
+<section class="batch-section py-4" id="batchSection" style="display:none;">
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-lg-8">
+        <div class="scanner-card">
+          <div class="scanner-card-header d-flex align-items-center justify-content-between">
+            <span><i class="bi bi-collection-fill me-2"></i>Batch URL Scanner</span>
+            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">Up to 20 URLs</span>
+          </div>
+          <div class="scanner-card-body">
+            <p class="text-muted small mb-3">Enter one URL per line to scan multiple URLs at once.</p>
+            <textarea id="batchInput" class="form-control url-input"
+                      rows="6" placeholder="https://example.com&#10;http://suspicious-site.xyz&#10;https://another.com"
+                      style="font-family:monospace;font-size:0.85rem;resize:vertical;"
+                      {% if not model_ready %}disabled{% endif %}></textarea>
+            <div class="d-flex gap-3 mt-3 flex-wrap">
+              <button class="btn btn-scan flex-grow-1" id="batchBtn"
+                      {% if not model_ready %}disabled{% endif %}>
+                <i class="bi bi-collection me-2"></i>Scan All URLs
+              </button>
+              <button type="button" class="btn btn-outline-secondary" id="batchClearBtn" title="Clear">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <div id="batchProgress" class="d-none mt-3">
+              <div class="progress" style="height:4px;">
+                <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary w-100"></div>
+              </div>
+              <p class="text-muted small mt-2 mb-0"><i class="bi bi-hourglass-split me-1"></i>Scanning URLs…</p>
+            </div>
+            <div id="batchResults" class="mt-3"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+<!-- Threat categories info -->
+<section class="info-section py-5">
+  <div class="container">
+
+    <!-- Animated scan line -->
+    <div class="scan-line-wrap mb-4" aria-hidden="true">
+      <div class="scan-line-track">
+        <div class="scan-line-beam"></div>
+      </div>
+    </div>
+
+    <h5 class="text-center text-light mb-4 opacity-75">
+      <i class="bi bi-shield-exclamation me-2 text-info"></i>Threat Categories
+    </h5>
+    <div class="row g-3 justify-content-center">
+
+      <div class="col-sm-6 col-lg-3">
+        <a href="/history?filter=SAFE" class="threat-card-link" title="View all Safe URLs">
+        <div class="threat-card threat-safe threat-card-clickable">
+          <div class="threat-icon">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 72" fill="none" width="3rem" height="3rem">
+    <!-- Outer shield with green gradient border -->
+    <path d="M32 2 L58 12 L58 36 C58 52 46 64 32 70 C18 64 6 52 6 36 L6 12 Z"
+          fill="white" stroke="#16a34a" stroke-width="4"/>
+    <!-- Inner blue accent at bottom -->
+    <path d="M32 70 C18 64 6 52 6 36 L6 46 C8 58 18 66 32 70 Z"
+          fill="#2563eb" opacity="0.7"/>
+    <path d="M32 70 C46 64 58 52 58 36 L58 46 C56 58 46 66 32 70 Z"
+          fill="#2563eb" opacity="0.7"/>
+    <!-- Checkmark -->
+    <polyline points="18,35 27,45 46,24"
+              fill="none" stroke="#16a34a" stroke-width="6"
+              stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+</div>
+          <div class="threat-name">SAFE</div>
+          <div class="threat-desc">No significant risk indicators detected. Appears to be a legitimate URL.</div>
+          <div class="threat-score">Risk: 0–30</div>
+          <div class="threat-view-hint"><i class="bi bi-arrow-right-circle me-1"></i>View List</div>
+        </div>
+        </a>
+      </div>
+
+      <div class="col-sm-6 col-lg-3">
+        <a href="/history?filter=SUSPICIOUS" class="threat-card-link" title="View all Suspicious URLs">
+        <div class="threat-card threat-suspicious threat-card-clickable">
+          <div class="threat-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>
+          <div class="threat-name">SUSPICIOUS</div>
+          <div class="threat-desc">Some unusual patterns detected. Proceed with caution.</div>
+          <div class="threat-score">Risk: 31–60</div>
+          <div class="threat-view-hint"><i class="bi bi-arrow-right-circle me-1"></i>View List</div>
+        </div>
+        </a>
+      </div>
+
+      <div class="col-sm-6 col-lg-3">
+        <a href="/history?filter=PHISHING" class="threat-card-link" title="View all Phishing URLs">
+        <div class="threat-card threat-phishing threat-card-clickable">
+          <div class="threat-icon">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 110" fill="currentColor" width="3rem" height="3rem">
+    <!-- Skull cranium -->
+    <ellipse cx="50" cy="42" rx="36" ry="34" fill="currentColor"/>
+    <!-- Eye sockets (hollow) -->
+    <ellipse cx="35" cy="40" rx="10" ry="11" fill="black"/>
+    <ellipse cx="65" cy="40" rx="10" ry="11" fill="black"/>
+    <!-- Nose hole -->
+    <ellipse cx="50" cy="55" rx="5" ry="6" fill="black"/>
+    <!-- Jaw -->
+    <rect x="22" y="68" width="56" height="22" rx="6" fill="currentColor"/>
+    <!-- Teeth gaps -->
+    <rect x="31" y="70" width="8"  height="14" rx="2" fill="black"/>
+    <rect x="46" y="70" width="8"  height="14" rx="2" fill="black"/>
+    <rect x="61" y="70" width="8"  height="14" rx="2" fill="black"/>
+  </svg>
+</div>
+          <div class="threat-name">PHISHING</div>
+          <div class="threat-desc">Strong indicators of credential theft or impersonation attempt.</div>
+          <div class="threat-score">Risk: 61–80</div>
+          <div class="threat-view-hint"><i class="bi bi-arrow-right-circle me-1"></i>View List</div>
+        </div>
+        </a>
+      </div>
+
+      <div class="col-sm-6 col-lg-3">
+        <a href="/history?filter=MALICIOUS" class="threat-card-link" title="View all Malicious URLs">
+        <div class="threat-card threat-malicious threat-card-clickable">
+          <div class="threat-icon"><i class="bi bi-bug-fill"></i></div>
+          <div class="threat-name">MALICIOUS</div>
+          <div class="threat-desc">High-confidence malware, exploit, or attack-related indicators.</div>
+          <div class="threat-score">Risk: 81–100</div>
+          <div class="threat-view-hint"><i class="bi bi-arrow-right-circle me-1"></i>View List</div>
+        </div>
+        </a>
+      </div>
+
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  window.MODEL_READY = {{ 'true' if model_ready else 'false' }};
+  // Pre-fill URL from query param (e.g. from Re-scan button on details page)
+  (function() {
+    var params = new URLSearchParams(window.location.search);
+    var prefill = params.get("url");
+    if (prefill) {
+      var inp = document.getElementById("urlInput");
+      if (inp) {
+        inp.value = prefill;
+        // Auto-submit after a short delay so the page is fully loaded
+        setTimeout(function() {
+          var form = document.getElementById("scanForm");
+          if (form && window.MODEL_READY) form.dispatchEvent(new Event("submit", {bubbles:true, cancelable:true}));
+        }, 300);
+      }
+    }
+    // Display form_error from server if present
+    {% if form_error is defined and form_error %}
+    (function() {
+      var errEl = document.getElementById("urlError");
+      if (errEl) {
+        errEl.textContent = {{ form_error | tojson }};
+        errEl.classList.remove("d-none");
+      }
+    })();
+    {% endif %}
+  })();
+</script>
+{% endblock %}

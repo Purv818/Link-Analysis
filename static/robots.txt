@@ -1,0 +1,13 @@
+﻿# AI Link Threat Analyzer — robots.txt
+# This is a local portfolio/demo application.
+
+User-agent: *
+# Do not index API endpoints or user-generated scan data
+Disallow: /api/
+Disallow: /details/
+Disallow: /history
+
+# Allow main pages for portfolio visibility
+Allow: /
+Allow: /dashboard
+Allow: /model-report
