@@ -34,3 +34,4 @@ requests==2.32.3
 # ── Notebooks (optional — only needed for link_analysis_model.ipynb) ──────
 # ipykernel==6.29.5
 # nbformat==5.10.4
+gunicorn
